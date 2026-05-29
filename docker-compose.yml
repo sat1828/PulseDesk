@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pulsedesk-db
+    environment:
+      POSTGRES_DB: pulsedesk
+      POSTGRES_USER: pulsedesk
+      POSTGRES_PASSWORD: pulsedesk_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulsedesk -d pulsedesk"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: pulsedesk-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  nlp:
+    build:
+      context: ./ml/inference
+      dockerfile: Dockerfile
+    container_name: pulsedesk-nlp
+    environment:
+      DATABASE_URL: postgresql://pulsedesk:pulsedesk_secret@postgres:5432/pulsedesk
+      NLP_SERVICE_API_KEY: internal_service_key
+    ports:
+      - "5001:5001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pulsedesk-api
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://pulsedesk:pulsedesk_secret@postgres:5432/pulsedesk
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: pulsedesk_jwt_super_secret_key_change_in_prod_2026
+      SLACK_CLIENT_ID: ${SLACK_CLIENT_ID:-1234567890.placeholder}
+      SLACK_CLIENT_SECRET: ${SLACK_CLIENT_SECRET:-placeholder_slack_client_secret}
+      SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-placeholder_slack_signing_secret}
+      API_BASE_URL: http://localhost:3001
+      FRONTEND_URL: http://localhost:5173
+      NLP_SERVICE_URL: http://nlp:5001
+      NLP_SERVICE_API_KEY: internal_service_key
+      LOG_LEVEL: info
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nlp:
+        condition: service_started
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pulsedesk-migrate
+    command: ["tsx", "src/db/migrate.ts"]
+    environment:
+      DATABASE_URL: postgresql://pulsedesk:pulsedesk_secret@postgres:5432/pulsedesk
+      NODE_ENV: development
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  seed:
+    profiles: ["seed"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pulsedesk-seed
+    command: ["tsx", "scripts/seed.ts"]
+    environment:
+      DATABASE_URL: postgresql://pulsedesk:pulsedesk_secret@postgres:5432/pulsedesk
+      JWT_SECRET: pulsedesk_jwt_super_secret_key_change_in_prod_2026
+      NODE_ENV: development
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  frontend:
+    image: node:22-alpine
+    container_name: pulsedesk-frontend
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install && npm run dev"
+    environment:
+      DOCKER: "true"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  pgdata:
