@@ -1,6 +1,6 @@
 <div align="center">
 
-<img width="1200" height="400" alt="banner" src="https://github.com/user-attachments/assets/a8af7db0-3bdb-49f1-93f2-637aed2dae54" />
+<img width="1400" height="520" alt="banner" src="https://github.com/user-attachments/assets/d592fdc6-d99f-4a3b-bc9a-60de0987ee39" />
 
 <br/>
 <br/>
@@ -89,7 +89,7 @@ Slack OAuth 2.0 flow, fully automated. Click connect, authorize in Slack, tokens
 ---
 
 ### System Architecture
-<img width="1200" height="720" alt="architecture" src="https://github.com/user-attachments/assets/2fc8ded4-6a39-41cb-8a76-5ec93ac67afa" />
+<img width="1400" height="820" alt="architecture" src="https://github.com/user-attachments/assets/e62f1824-5c27-4e2b-ab51-917c7c01c46b" />
 
 ---
 
